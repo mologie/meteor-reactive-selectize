@@ -11,14 +11,22 @@ options with a data source provided when constructing the wrapper.
 ## Example
 
 Assuming you have a collection of posts, accessible through `Posts`,
-and wish to display a select field which uses the post's ID as value:
+and wish to display a select field which uses the post's database
+identifier as value and the post title as label:
 
-```coffeescript
+```html
+<body>
+  <select id="postSelect"></select>
+</body>
+```
+
+```js
 Template.body.rendered = ->
   @controller = new ReactiveSelectizeController
     options: -> Posts.find()
     valueField: '_id'
-  @controller.attach $('#postSelect')
+    labelField: 'title'
+  @controller.attach @$('#postSelect')
 
 Tempalte.body.destroyed = ->
   @controller.stop()
