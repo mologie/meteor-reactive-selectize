@@ -7,12 +7,12 @@ Package.describe({
 
 var clientDependencies = [
 	'coffeescript',
-	'jquery'
+	'jquery',
+	'underscore'
 ];
 
 var clientFiles = [
-	'reactive-selectize.coffee',
-	//'reactive-selectize.html'
+	'reactive-selectize.coffee'
 ];
 
 var clientExports = [
