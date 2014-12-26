@@ -1,15 +1,27 @@
 Package.describe({
 	name:    'mologie:reactive-selectize',
 	summary: 'Keeps selectize.js\'s options in sync with a reactive data source',
-	version: '0.1.0',
+	version: '0.0.1',
 	git:     'TODO'
 });
 
+var clientDependencies = [
+	'coffeescript',
+	'jquery'
+];
+
+var clientFiles = [
+	'reactive-selectize.coffee',
+	//'reactive-selectize.html'
+];
+
+var clientExports = [
+	'ReactiveSelectizeController'
+];
+
 Package.onUse(function(api) {
-	api.versionsFrom('1.0.2.1');
-	api.use('coffeescript');
-	api.use('jquery');
-	api.addFiles('reactive-selectize.coffee', 'client');
-	api.addFiles('reactive-selectize.html', 'client');
-	api.export('ReactiveSelectizeController', 'client');
+	api.versionsFrom('1.0');
+	api.use(clientDependencies, 'client');
+	api.addFiles(clientFiles, 'client');
+	api.export(clientExports, 'client');
 });

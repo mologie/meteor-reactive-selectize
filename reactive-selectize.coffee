@@ -24,7 +24,7 @@
 # TODO Reactive placeholder (for localization)
 # TODO Reactive default value (for crazy people)
 
-class @ReactiveSelectizeController
+class ReactiveSelectizeController
 	constructor: (args) ->
 		@config = _.clone args
 		@config.valueField ?= "value"
