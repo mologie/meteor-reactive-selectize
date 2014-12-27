@@ -2,7 +2,7 @@
 # Copyright 2014 Oliver Kuckertz <oliver.kuckertz@mologie.de>
 # See COPYING for license information.
 #
-# jQuery plugin providing the syntax $('select').reactiveSelectize({...})
+# jQuery plugin providing $('select').reactiveSelectize({...})
 
 jQuery.fn.extend reactiveSelectize: (options) -> @each ->
 	# Remove options extensions
