@@ -28,7 +28,7 @@ Template.body.rendered = ->
     labelField: 'title'
   @controller.attach @$('#postSelect')
 
-Tempalte.body.destroyed = ->
+Template.body.destroyed = ->
   @controller.stop()
 
 Template.body.events
