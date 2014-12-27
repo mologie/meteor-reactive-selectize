@@ -2,7 +2,7 @@ Package.describe({
 	name:    'mologie:reactive-selectize',
 	summary: 'Keeps selectize.js\'s options in sync with a reactive data source',
 	version: '0.0.1',
-	git:     'TODO'
+	git:     'https://github.com/mologie/meteor-reactive-selectize'
 });
 
 var clientDependencies = [
