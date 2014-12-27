@@ -8,7 +8,6 @@
 
 # Selectize option extensions:
 #   options      required, function returning either a Mongo.Cursor or an array
-#   optionsMap   optional, works like .map for cursors
 #   placeholder  optional, an object like your options but without value
 #   selected     optional, an array of values that are selected
 #   valueField   optional, defaults to "value"
@@ -59,8 +58,7 @@ class ReactiveSelectizeController
 		@_optionValue(option) in @getValueArray()
 	
 	_selectizeOptions: ->
-		_.omit @_config, 'options', 'optionsMap', 'placeholder', 'selected',
-			'remotePersist'
+		_.omit @_config, 'options', 'placeholder', 'selected', 'remotePersist'
 	
 	_detach: ->
 		@selectize.destroy() if @selectize?
@@ -69,17 +67,10 @@ class ReactiveSelectizeController
 	_optionValue: (option) ->
 		option[@_config.valueField] ? ""
 	
-	_mapOption: (option) ->
-		if typeof @_config.optionsMap is "function"
-			option = _.clone option
-			@_config.optionsMap option
-		else
-			option
-	
 	_makeOption: (id, fields) ->
 		option = _.clone fields
 		option._id = id
-		@_mapOption option
+		option
 	
 	_makeUserOption: (value) ->
 		if typeof @_config.create is "function"
@@ -122,8 +113,6 @@ class ReactiveSelectizeController
 		
 		# Get current state
 		options = @_optionsDataSource.getSnapshot()
-		if @_config.optionsMap
-			options = (@_mapOption option for option in options)
 		
 		# Register options with selectize.js
 		for option in options
@@ -170,7 +159,6 @@ class ReactiveSelectizeController
 		@_batchChangedItems = false
 	
 	_optionAdded: (option) ->
-		option = @_mapOption option
 		if @_config.create
 			# Handle user-created options if needed
 			optionValue = @_optionValue option
@@ -185,11 +173,9 @@ class ReactiveSelectizeController
 		@_refreshOptions()
 	
 	_optionChanged: (option) ->
-		option = @_mapOption option
 		@selectize.updateOption @_optionValue option, option
 	
 	_optionRemoved: (option) ->
-		option = @_mapOption option
 		if @_config.create
 			# Apply special behavior according to configuration when
 			# user-created options are removed remotely.
