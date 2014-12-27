@@ -149,9 +149,9 @@ class ReactiveSelectizeController
 		previous = []
 		current = []
 		for option in previousSnapshot
-			previous[@_optionValue config] = item
+			previous[@_optionValue option] = option
 		for option in currentSnapshot
-			current[@_optionValue option] = item
+			current[@_optionValue option] = option
 		
 		# Diff keys
 		addedKeys = _.difference currentKeys, previousKeys
