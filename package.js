@@ -13,7 +13,8 @@ var clientDependencies = [
 
 var clientFiles = [
 	'data-source-observer.coffee',
-	'reactive-selectize.coffee'
+	'reactive-selectize.coffee',
+	'reactive-selectize-jquery.coffee'
 ];
 
 var clientExports = [
