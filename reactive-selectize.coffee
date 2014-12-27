@@ -6,18 +6,6 @@
 # sources. It specifically implements synchronizing Mongo.Cursor instances,
 # but can also handle the results of arbitrary reactive computations.
 
-# Selectize option extensions:
-#   options      required, function returning either a Mongo.Cursor or an array
-#   placeholder  optional, an object like your options but without value
-#   selected     optional, an array of values that are selected
-#   valueField   optional, defaults to "value"
-#   labelField   optional, defaults to "label"
-
-# remotePersist:
-# never -> never persist, always delete & deselect options when deleted remotely
-# selected -> default, only persist if option is selected
-# always -> keep all remotely deleted options
-
 # TODO Option groups
 # TODO Reactive placeholder (for localization)
 # TODO Reactive default value (for crazy people)
