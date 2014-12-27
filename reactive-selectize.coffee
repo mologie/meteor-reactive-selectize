@@ -1,16 +1,11 @@
-#
-# mologie:autoform-selectize
+# mologie:reactive-selectize
 # Copyright 2014 Oliver Kuckertz <oliver.kuckertz@mologie.de>
 # See COPYING for license information.
-#
-# Abstract: Makes selectize.js's "options" property work like you would expect
-# it to work in a Meteor application with little to no side effects and a mostly
-# unmodified selectize.js API.
-#
-# This package integrates selectize.js controls with Meteor's reactive data
+
+# This class integrates selectize.js controls with Meteor's reactive data
 # sources. It specifically implements synchronizing Mongo.Cursor instances,
 # but can also handle the results of arbitrary reactive computations.
-#
+
 # Selectize option extensions:
 #   options      required, function returning either a Mongo.Cursor or an array
 #   optionsMap   optional, works like .map for cursors
@@ -18,46 +13,66 @@
 #   selected     optional, an array of values that are selected
 #   valueField   optional, defaults to "value"
 #   labelField   optional, defaults to "label"
-#
+
+# remotePersist:
+# never -> never persist, always delete & deselect options when deleted remotely
+# selected -> default, only persist if option is selected
+# always -> keep all remotely deleted options
 
 # TODO Option groups
 # TODO Reactive placeholder (for localization)
 # TODO Reactive default value (for crazy people)
 
 class ReactiveSelectizeController
-	constructor: (args) ->
-		@config = _.clone args
-		@config.valueField ?= "value"
-		@config.labelField ?= "label"
-		
-		@optionsDataSource = @config.options ? []
-		@selectedItems = @config.selected ? []
+	constructor: (config) ->
+		defaults =
+			valueField: "value"
+			labelField: "label"
+			remotePersist: "selected"
+		@_config = _.extend defaults, config
+		@_optionsProvider = @_config.options ? []
+		@_selectedItems = @_config.selected ? []
 	
 	attach: ($el) ->
 		if @selectize
 			return
-		view = $el.selectize(@_selectizeOptions())[0].selectize
-		@_beginUpdatingView view
-	
-	stop: ->
-		@_endReceivingDataUpdates() if @dataComputation?
-		@_stopObservingChangesInDataSource() if @liveQuery?
-	
-	_selectizeOptions: ->
-		_.omit @config, 'options', 'optionsMap', 'placeholder', 'selected'
-	
-	_beginUpdatingView: (selectize) ->
-		@selectize = selectize
-		@_addPlaceholder() if @config.placeholder
+		@selectize = $el.selectize(@_selectizeOptions())[0].selectize
+		@_addPlaceholder() if @_config.placeholder
 		@_populateFromDataSource()
 	
+	stop: ->
+		if @_optionsDataSource?
+			@_optionsDataSource.stop()
+			delete @_optionsDataSource
+		@_detach()
+	
+	getValue: ->
+		@selectize.getValue()
+	
+	getValueArray: ->
+		value = @selectize.getValue()
+		if not _.isArray value
+			value = [value]
+		value
+	
+	isSelected: (option) ->
+		@_optionValue(option) in @getValueArray()
+	
+	_selectizeOptions: ->
+		_.omit @_config, 'options', 'optionsMap', 'placeholder', 'selected',
+			'remotePersist'
+	
+	_detach: ->
+		@selectize.destroy() if @selectize?
+		delete @selectize
+	
 	_optionValue: (option) ->
-		option[@config.valueField] ? ""
+		option[@_config.valueField] ? ""
 	
 	_mapOption: (option) ->
-		if typeof @config.optionsMap is "function"
+		if typeof @_config.optionsMap is "function"
 			option = _.clone option
-			@config.optionsMap option
+			@_config.optionsMap option
 		else
 			option
 	
@@ -67,138 +82,127 @@ class ReactiveSelectizeController
 		@_mapOption option
 	
 	_makeUserOption: (value) ->
-		if typeof @config.create is "function"
-			@config.create value
+		if typeof @_config.create is "function"
+			@_config.create value
 		else
 			option = {}
-			option[@config.valueField] = value
-			option[@config.labelField] = value
+			option[@_config.valueField] = value
+			option[@_config.labelField] = value
 			option
 	
 	_markPersistent: (option) ->
-		# FIXME For the persist option to work correctly, the previously
-		# created option must not be marked as "created by user". However,
+		# FIXME For the persist option to work correctly, options provided by
+		# the server must not be marked as "created by user". However,
 		# selectize.js's API does not expose such a feature yet and assumes
 		# that all options created through addOptions are user options.
+		# The following does the job without side effects, but muddles with
+		# selectize.js's internal properties and may break at some time.
 		delete @selectize.userOptions[@_optionValue option]
+	
+	_markUserCreated: (option) ->
+		# FIXME Like above, this uses a private property.
+		@selectize.userOptions[@_optionValue option] = true
 	
 	_addPlaceholder: ->
 		placeholderOption = {}
-		placeholderOption[@config.valueField] = ""
-		placeholderOption[@config.labelField] = ""
+		placeholderOption[@_config.valueField] = ""
+		placeholderOption[@_config.labelField] = ""
 		@selectize.addOption placeholderItem
 		# TODO use placeholder value
 		# TODO update placehodler value reactively if function
 	
-	_dataChanged: ->
-		previousSnapshot = @dataSnapshot
-		@dataSnapshot = @optionsDataSource()
-		if @updateControlOnDataChange
-			@_synchronizeWithDataSource previousSnapshot, @dataSnapshot
-	
-	_beginReceivingDataUpdates: ->
-		@dataComputation = Tracker.autorun => @_dataChanged()
-	
-	_endReceivingDataUpdates: ->
-		@dataComputation.stop()
-		delete @dataComputation
-	
 	_populateFromDataSource: ->
-		if typeof @optionsDataSource is "function"
-			# Handle reactive data sources
-			@_beginReceivingDataUpdates()
-			options = @dataSnapshot
-			
-			# Handle Mongo cursors more efficiently (like Blaze)
-			if options instanceof Mongo.Cursor
-				@_endReceivingDataUpdates()
-				cursor = options
-				options = cursor.fetch()
-				@liveQuery = @_observeChangesInDataSource cursor
-			
-			# Sanity check
-			if not _.isArray options
-				throw "reactive-selectize expected data source to return array"
-		else
-			# Handle static data sources
-			options = @optionsDataSource
+		# Begin listening for changes
+		@_optionsDataSource = new DataSourceObserver @_optionsProvider, @_config.valueField,
+			batchBegin: => @_beginBatchUpdate()
+			batchEnd: => @_endBatchUpdate()
+			added: (option) => @_optionAdded option
+			changed: (option) => @_optionChanged option
+			removed: (option) => @_optionRemoved option
 		
-		# Apply map function
-		if @config.optionsMap
+		# Get current state
+		options = @_optionsDataSource.getSnapshot()
+		if @_config.optionsMap
 			options = (@_mapOption option for option in options)
 		
-		# Register options from data source
+		# Register options with selectize.js
 		for option in options
 			@selectize.addOption option
 			@_markPersistent option
-		@selectize.refreshOptions false
 		
-		# Set values
-		predefinedOptions = _.pluck options, @config.valueField
-		@_setInitialValues predefinedOptions
+		# Collection option values
+		knownValues = _.pluck options, @_config.valueField
 		
-		# Begin updating control reactively
-		@updateControlOnDataChange = true
-	
-	_synchronizeWithDataSource: (previousSnapshot, currentSnapshot) ->
-		# Extract keys
-		previousKeys = _.pluck previousSnapshot, @config.valueField
-		currentKeys = _.pluck currentSnapshot, @config.valueField
-		
-		# Map objects to keys
-		previous = []
-		current = []
-		for option in previousSnapshot
-			previous[@_optionValue option] = option
-		for option in currentSnapshot
-			current[@_optionValue option] = option
-		
-		# Diff keys
-		addedKeys = _.difference currentKeys, previousKeys
-		removedKeys = _.difference previousKeys, currentKeys
-		changedKeys = _.intersection previousSnapshot, currentSnapshot
-		
-		# Update control
-		for value in addedKeys
-			option = @_mapOption current[value]
-			@selectize.addOption option
-			@_markPersistent option
-		for value in removedKeys
-			@selectize.removeOption value
-		for value in changedKeys
-			item = @_mapOption current[value]
-			@selectize.updateOption value, item
-		
-		# Render changes
-		@selectize.refreshOptions false
-	
-	_setInitialValues: (predefinedValues) ->
-		for itemValue in @selectedItems
-			if itemValue in predefinedValues
+		# Set values and create user options
+		for itemValue in @_selectedItems
+			if itemValue in knownValues
 				@selectize.addItem itemValue
-			else if @config.create
+			else if @_config.create
 				option = @_makeUserOption itemValue
 				@selectize.addOption option
+				@_markUserCreated option
 				@selectize.addItem itemValue
-		@selectize.refreshOptions false
-		@selectize.refreshItems()
+		
+		# Update control
+		@_refreshOptions()
+		@_refreshItems()
 	
-	_observeChangesInDataSource: (cursor) -> cursor.observeChanges
-		added: (id, fields) =>
-			option = @_makeOption id, fields
-			@selectize.addOption option
-			@_markPersistent option
-			@selectize.refreshOptions false
-		
-		changed: (id, fields) =>
-			option = @_makeOption id, fields
-			@selectize.updateOption @_optionValue option, option
-		
-		removed: (id) =>
-			option = @_makeOption id, fields
-			@selectize.removeOption @_optionValue option
+	_refreshOptions: ->
+		if @_batchUpdate
+			@_batchChangedOptions = true
+		else
 			@selectize.refreshOptions false
 	
-	_stopObservingChangesInDataSource: ->
-		@liveQuery.stop()
-		delete @liveQuery
+	_refreshItems: ->
+		if @_batchUpdate
+			@_batchChangedItems = true
+		else
+			@selectize.refreshItems()
+	
+	_beginBatchUpdate: ->
+		@_batchUpdate = true
+	
+	_endBatchUpdate: ->
+		@_batchUpdate = false
+		@_refreshOptions() if @_batchChangedOptions
+		@_refreshItems() if @_batchChangedItems
+		@_batchChangedOptions = false
+		@_batchChangedItems = false
+	
+	_optionAdded: (option) ->
+		option = @_mapOption option
+		if @_config.create
+			# Handle user-created options if needed
+			optionValue = @_optionValue option
+			selectedValues = @getValueArray()
+			if optionValue in selectedValues
+				# The option is already there, update it and make it persistent
+				@selectize.updateOption optionValue, option
+				@_markPersistent option
+				return
+		@selectize.addOption option
+		@_markPersistent option
+		@_refreshOptions()
+	
+	_optionChanged: (option) ->
+		option = @_mapOption option
+		@selectize.updateOption @_optionValue option, option
+	
+	_optionRemoved: (option) ->
+		option = @_mapOption option
+		if @_config.create
+			# Apply special behavior according to configuration when
+			# user-created options are removed remotely.
+			switch @_config.remotePersist
+				when "always" then keep = @_config.persist or @isSelected option
+				when "selected" then keep = @isSelected option
+				else keep = false
+			if keep
+				@_markUserCreated option
+				return
+		@selectize.removeOption @_optionValue option		
+		@_refreshOptions()
+		@_refreshItems()
+
+
+@ReactiveSelectizeController = ReactiveSelectizeController
