@@ -4,8 +4,8 @@
 
 # The DataSourceObserver class provides an API very similar to that of
 # Mongo.Cursor for all reactive computations, given that all result sets share
-# a unique identifying property.
-# It also provides specific support for Mongo.Cursor objects to reduce overhead.
+# a unique identifying property. It also provides specific support for
+# Mongo.Cursor objects for reducing overhead.
 
 makeObject = (id, fields) ->
 	object = _.clone fields
