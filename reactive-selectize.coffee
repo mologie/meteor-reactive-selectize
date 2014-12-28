@@ -91,7 +91,12 @@ class ReactiveSelectizeController
 		# TODO update placehodler value reactively if function
 	
 	_populateFromDataSource: ->
+		# Avoid unnecessary rendering
+		@_beginBatchUpdate()
+		
 		# Begin listening for changes
+		# An added event will immediately be fired for each document already
+		# present in the collection returned by the options provider.
 		@_optionsDataSource = new DataSourceObserver @_optionsProvider, @_config.valueField,
 			batchBegin: => @_beginBatchUpdate()
 			batchEnd: => @_endBatchUpdate()
@@ -99,30 +104,24 @@ class ReactiveSelectizeController
 			changed: (option) => @_optionChanged option
 			removed: (option) => @_optionRemoved option
 		
-		# Get current state
-		options = @_optionsDataSource.getSnapshot()
-		
-		# Register options with selectize.js
-		for option in options
-			@selectize.addOption option
-			@_markPersistent option
-		
-		# Collection option values
-		knownValues = _.pluck options, @_config.valueField
+		# Collect option values
+		knownValues = _.keys @selectize.options
 		
 		# Set values and create user options
 		for itemValue in @_selectedItems
 			if itemValue in knownValues
 				@selectize.addItem itemValue
+				@_refreshItems()
 			else if @_config.create
 				option = @_makeUserOption itemValue
 				@selectize.addOption option
 				@_markUserCreated option
 				@selectize.addItem itemValue
+				@_refreshItems()
+				@_refreshOptions()
 		
 		# Update control
-		@_refreshOptions()
-		@_refreshItems()
+		@_endBatchUpdate()
 	
 	_refreshOptions: ->
 		if @_batchUpdate
@@ -138,8 +137,14 @@ class ReactiveSelectizeController
 	
 	_beginBatchUpdate: ->
 		@_batchUpdate = true
+		@_batchUpdateDepth = @_batchUpdateDepth + 1
 	
 	_endBatchUpdate: ->
+		if @_batchUpdateDepth == 0
+			throw new Error "Something done goofed with nested batch begin/end calls"
+		@_batchUpdateDepth = @_batchUpdateDepth - 1
+		if @_batchUpdateDepth != 0
+			return
 		@_batchUpdate = false
 		@_refreshOptions() if @_batchChangedOptions
 		@_refreshItems() if @_batchChangedItems

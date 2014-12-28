@@ -51,28 +51,43 @@ class DataSourceObserver
 		
 		if @_snapshot instanceof Mongo.Cursor
 			# Begin receiving stream of results using live query interface
+			@_ensureResultTypeUnchanged "cursor"
 			@_liveQuery.stop() if @_liveQuery?
 			@_liveQuery = @_observeChangesInQuery @_snapshot
-		
 		else if _.isArray @_snapshot
-			# Diff against previous snapshot
-			@_diffSnapshots @_previousSnapshot, @_snapshot if @_previousSnapshot
-		
+			# Diff current snapshot against previous snapshot, if any
+			@_ensureResultTypeUnchanged "array"
+			if @_previousSnapshot
+				@_diffSnapshots @_previousSnapshot, @_snapshot
+			else
+				@_addAll @_snapshot
 		else
-			throw "DataSource: provider function must return an array or a Mongo.Cursor instance"
+			throw new Error "DataSourceObserver provider function must return an array or a Mongo.Cursor instance"
 	
-	_observeChangesInQuery: (cursor) -> cursor.observeChanges
-		added: (id, fields) =>
-			object = makeObject id, fields
-			@_callbacks.added object if @_callbacks.added?
-		
-		changed: (id, fields) =>
-			object = makeObject id, fields
-			@_callbacks.changed object if @_callbacks.changed?
-		
-		removed: (id) =>
-			object = makeObject id, fields
-			@_callbacks.removed object if @_callbacks.removed?
+	_ensureResultTypeUnchanged: (type) ->
+		# Sorry about this. :/ Changing result types are is supported because
+		# this class does not keep track of what is actually being returned by
+		# Mongo.Cursor's observe function. Maybe another time.
+		if @_resultType?
+			if type is not @_resultType
+				throw new Error("DataSourceObserver provider must not change result type")
+		else
+			@_resultType = type
+	
+	_addAll: (collection) ->
+		@_callbacks.batchBegin() if @_callbacks.batchBegin?
+		if not @_callbacks.added?
+			return
+		for doc in collection
+			@_callbacks.added doc
+		@_callbacks.batchEnd() if @_callbacks.batchEnd?
+	
+	_observeChangesInQuery: (cursor) ->
+		watchers = {}
+		if @_callbacks.added? then watchers.added = (doc) => @_callbacks.added doc
+		if @_callbacks.changed? then watchers.changed = (newDoc, oldDoc) => @_callbacks.changed newDoc, oldDoc
+		if @_callbacks.removed? then watchers.removed = (oldDoc) => @_callbacks.removed oldDoc
+		cursor.observe watchers
 	
 	_objectValue: (object) ->
 		object[@_valueField] ? ""
@@ -90,21 +105,26 @@ class DataSourceObserver
 		for object in currentSnapshot
 			current[@_objectValue object] = object
 		
-		# Diff keys
-		addedKeys = _.difference currentKeys, previousKeys
-		removedKeys = _.difference previousKeys, currentKeys
-		changedKeys = _.intersection previousSnapshot, currentSnapshot
-		
 		# Begin batch update
 		@_callbacks.batchBegin() if @_callbacks.batchBegin?
 		
-		# Notify delegate
-		for value in addedKeys
-			@_callbacks.added current[value] if @_callbacks.added?
-		for value in changedKeys
-			@_callbacks.changed current[value], previous[value] if @_callbacks.changed?
-		for value in removedKeys
-			@_callbacks.removed previous[value] if @_callbacks.removed?
+		# Find added documents
+		if @_callbacks.added?
+			addedKeys = _.difference currentKeys, previousKeys
+			for value in addedKeys
+				@_callbacks.added current[value]
+		
+		# Find changed documents
+		if @_callbacks.changed?
+			changedKeys = _.intersection previousSnapshot, currentSnapshot
+			for value in changedKeys
+				@_callbacks.changed current[value], previous[value]
+		
+		# Find removed documents
+		if @_callbacks.removed?
+			removedKeys = _.difference previousKeys, currentKeys
+			for value in removedKeys
+				@_callbacks.removed previous[value]
 		
 		# End batch update
 		@_callbacks.batchEnd() if @_callbacks.batchEnd?
