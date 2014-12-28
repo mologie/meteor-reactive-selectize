@@ -97,12 +97,16 @@ class ReactiveSelectizeController
 		# Begin listening for changes
 		# An added event will immediately be fired for each document already
 		# present in the collection returned by the options provider.
-		@_optionsDataSource = new DataSourceObserver @_optionsProvider, @_config.valueField,
-			batchBegin: => @_beginBatchUpdate()
-			batchEnd: => @_endBatchUpdate()
-			added: (option) => @_optionAdded option
-			changed: (option) => @_optionChanged option
-			removed: (option) => @_optionRemoved option
+		@_optionsDataSource = new ComputationObserver
+			computation: @_optionsProvider
+			valueField: @_config.valueField
+			events:
+				batchBegin: => @_beginBatchUpdate()
+				batchEnd: => @_endBatchUpdate()
+				added: (option) => @_optionAdded option
+				changed: (option) => @_optionChanged option
+				removed: (option) => @_optionRemoved option
+		@_optionsDataSource.start()
 		
 		# Collect option values
 		knownValues = _.keys @selectize.options

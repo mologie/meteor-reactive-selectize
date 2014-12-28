@@ -8,11 +8,11 @@ Package.describe({
 var clientDependencies = [
 	'coffeescript',
 	'jquery',
-	'underscore'
+	'underscore',
+	'mologie:computation-observer@0.0.0'
 ];
 
 var clientFiles = [
-	'data-source-observer.coffee',
 	'reactive-selectize.coffee',
 	'reactive-selectize-jquery.coffee'
 ];
