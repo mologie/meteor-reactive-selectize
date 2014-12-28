@@ -9,7 +9,7 @@ var clientDependencies = [
 	'coffeescript',
 	'jquery',
 	'underscore',
-	'mologie:computation-observer@0.0.0'
+	'mologie:computation-observer@1.0.0'
 ];
 
 var clientFiles = [
