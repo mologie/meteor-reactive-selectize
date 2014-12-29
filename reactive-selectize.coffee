@@ -170,7 +170,7 @@ class ReactiveSelectizeController
 		@_refreshOptions()
 	
 	_optionChanged: (option) ->
-		@selectize.updateOption @_optionValue option, option
+		@selectize.updateOption @_optionValue(option), option
 	
 	_optionRemoved: (option) ->
 		if @_config.create
@@ -183,7 +183,7 @@ class ReactiveSelectizeController
 			if keep
 				@_markUserCreated option
 				return
-		@selectize.removeOption @_optionValue option		
+		@selectize.removeOption @_optionValue(option)
 		@_refreshOptions()
 		@_refreshItems()
 
