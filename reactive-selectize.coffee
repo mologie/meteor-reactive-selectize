@@ -86,7 +86,7 @@ class ReactiveSelectizeController
 		placeholderOption = {}
 		placeholderOption[@_config.valueField] = ""
 		placeholderOption[@_config.labelField] = ""
-		@selectize.addOption placeholderItem
+		@selectize.addOption placeholderOption
 		# TODO use placeholder value
 		# TODO update placehodler value reactively if function
 	
